@@ -1,0 +1,1 @@
+# MicroStrategy Command Manager Procedures
