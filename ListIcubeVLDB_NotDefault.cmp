@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>
+<PROCEDURE_DEFINITION>
+<DESCRIPTION>This will change check  theVLDB Properties of the cubes mentioned in the of Intelligent cubes mentioned in the input dataset and then it will printount those VLDB settings where the default is NOT used.</DESCRIPTION>
+<CODE>//List VLDB Properties Not Default&#13;
+//This will change check  theVLDB Properties of the cubes mentioned in the of Intelligent cubes mentioned in the input dataset and then it will printount those VLDB settings&#13;
+// where the default is NOT used.&#13;
+&#13;
+//Created by Jean Kachappilly on 1st July 2018&#13;
+&#13;
+//Parameters of the procedure&#13;
+&#13;
+//sDictionaryName - Name of the Excel Sheet&#13;
+//sExcelPath -  Path of the Excel having the Icube Name and Path&#13;
+//sProjectName - Project Name in which the intelligent cubes/reports are present.&#13;
+&#13;
+//APIs USED&#13;
+&#13;
+//1. jxl - to read a .xls file from java program. &#13;
+//2.MockRunner - This can create a result set object from an array like that of jxl. &#13;
+//3.Apache POI 3.9 for writing into xls.&#13;
+&#13;
+//************Program Begins here*****************************&#13;
+&#13;
+//Initialize jxl variables. We are using jxl API to read excel from a java program. &#13;
+&#13;
+jxl.Workbook w ;&#13;
+jxl.Sheet inputSheet ;&#13;
+int inputSheetRowCnt;&#13;
+int inputSheetColCnt;&#13;
+&#13;
+//Intialize Mock Runner Variables. Mock Runner is an API  used mimic a java resultset object which cant be otherwise created from jxl output. &#13;
+&#13;
+com.mockrunner.mock.jdbc.MockResultSet CubeSet = new com.mockrunner.mock.jdbc.MockResultSet("ExcelResultSet");&#13;
+List&lt;String&gt; header_cols = new ArrayList&lt;String&gt;();&#13;
+List&lt;String&gt; data_row = new ArrayList&lt;String&gt;();&#13;
+&#13;
+// Initialize some flags to know if the completion of the program is successfull&#13;
+&#13;
+int emptyCubeSet = 0;&#13;
+String resultMesssage = null;//This reult string will hold the final result message used in the finally clause&#13;
+String failedCreation = null;&#13;
+&#13;
+&#13;
+&#13;
+try&#13;
+{&#13;
+&#13;
+	// Read from Excel using jxl api&#13;
+&#13;
+	File inputWorkbook = new File(sExcelPath);&#13;
+	w = jxl.Workbook.getWorkbook(inputWorkbook);&#13;
+	inputSheet= w.getSheet(sDictionaryName);&#13;
+	inputSheetRowCnt = inputSheet.getRows();&#13;
+	inputSheetColCnt =  inputSheet.getColumns();&#13;
+	printOut("The sheet " +inputSheet.getName()+"  has "+inputSheetRowCnt+" Rows and "+inputSheetColCnt+" Columns");&#13;
+	jxl.Cell[] header_cells =  inputSheet.getRow(0);&#13;
+	&#13;
+	&#13;
+	//Load data into the mockrunner resulset. This is for the purpose of iterating over the resultset easily.&#13;
+	//Load the header rows first&#13;
+	&#13;
+	for (int i = 0; i &lt; header_cells.length; i++) {&#13;
+		CubeSet.addColumn(header_cells[i].getContents());&#13;
+	}&#13;
+	printOut("header cols list is completed");&#13;
+&#13;
+	printOut("Reading Excel Input.....");&#13;
+	&#13;
+	//Next load the data rows.&#13;
+	for (int i = 1; i &lt; inputSheetRowCnt; i++) {&#13;
+		&#13;
+		for(int j = 0; j &lt; inputSheetColCnt; j++) {&#13;
+&#13;
+			jxl.Cell data_cell =  inputSheet.getCell(j,i);&#13;
+			data_row.add(data_cell.getContents());		&#13;
+			&#13;
+		}&#13;
+		//Add data row to the resultset.&#13;
+&#13;
+		CubeSet.addRow(data_row);&#13;
+		data_row.clear();&#13;
+		&#13;
+	}&#13;
+	&#13;
+	//close the jxl workbook&#13;
+	w.close();&#13;
+	&#13;
+	//Create a file input stream to read the same excel containing the input . create a new hssf workbook by giving input stream as the parameter and create a new sheet&#13;
+&#13;
+	FileInputStream inputStream = new FileInputStream(new File(sExcelPath));&#13;
+	org.apache.poi.hssf.usermodel.HSSFWorkbook wwb = new org.apache.poi.hssf.usermodel.HSSFWorkbook(inputStream);&#13;
+	org.apache.poi.hssf.usermodel.HSSFSheet ws = wwb.createSheet(sProjectName+" VLDB");&#13;
+	org.apache.poi.hssf.usermodel.HSSFRow header = ws.createRow(0);&#13;
+	&#13;
+	//Create the  header row in the sheet.&#13;
+	org.apache.poi.hssf.usermodel.HSSFCell head_cell0 = header.createCell(0);&#13;
+	org.apache.poi.hssf.usermodel.HSSFCell head_cell1 = header.createCell(1);&#13;
+	org.apache.poi.hssf.usermodel.HSSFCell head_cell2 = header.createCell(2);&#13;
+	org.apache.poi.hssf.usermodel.HSSFCell head_cell3 = header.createCell(3);&#13;
+	org.apache.poi.hssf.usermodel.HSSFCell head_cell4 = header.createCell(4);&#13;
+	org.apache.poi.hssf.usermodel.HSSFCell head_cell5 = header.createCell(5);	&#13;
+	&#13;
+	head_cell0.setCellValue("CUBE_NAME");&#13;
+	head_cell1.setCellValue("PATH");&#13;
+	head_cell2.setCellValue("VLDB PROPERTY GROUP");&#13;
+	head_cell3.setCellValue("VLDB PROPERTY NAME");&#13;
+	head_cell4.setCellValue("VLDB PROPERTY VALUE");&#13;
+	head_cell5.setCellValue("DEFAULT_VLDB");&#13;
+	&#13;
+	//Initialize a variable to increment the row count.&#13;
+	int outRowNum = 1;&#13;
+&#13;
+	//Start Processing the resultset containing the input.&#13;
+&#13;
+	if(CubeSet == null){&#13;
+		printErr("No Objects is found in '" +sDictionaryName + "'");&#13;
+		emptyCubeSet = 1;&#13;
+		return;&#13;
+	}&#13;
+&#13;
+	//If the resultset is not empty, iterate over the rows and read the vldb properties.&#13;
+&#13;
+&#13;
+	else&#13;
+	{	&#13;
+		&#13;
+		while(CubeSet.next()){&#13;
+			&#13;
+			String sCubeName=CubeSet.getString("CUBE_NAME");&#13;
+			String sPath=CubeSet.getString("PATH");&#13;
+			&#13;
+			String ListQuery = "LIST VLDBSETTINGS FOR REPORT \"" + sCubeName + "\" IN FOLDER  \"" + sPath + "\" IN PROJECT \"" + sProjectName + "\";";&#13;
+			ResultSet rsVLDBPropertySet = executeCapture(ListQuery); // resultset containing the properties result  set.&#13;
+			rsVLDBPropertySet.moveFirst();&#13;
+&#13;
+			while(!rsVLDBPropertySet.isEof()){&#13;
+				&#13;
+&#13;
+				String sVLDB_PROPERTY_GROUP_NAME = rsVLDBPropertySet.getFieldValueString(DisplayPropertyEnum.VLDB_PROPERTY_GROUP_NAME);&#13;
+&#13;
+			//Group properties is a result set again.&#13;
+&#13;
+				ResultSet rsVLDB_PROPERTY_GROUP = (ResultSet)rsVLDBPropertySet.getFieldValue(DisplayPropertyEnum.VLDB_PROPERTY_GROUP);&#13;
+				&#13;
+				rsVLDB_PROPERTY_GROUP.moveFirst();              &#13;
+				while(!rsVLDB_PROPERTY_GROUP.isEof()){&#13;
+					&#13;
+					String sVLDB_PROPERTY_NAME  = rsVLDB_PROPERTY_GROUP.getFieldValueString(DisplayPropertyEnum.VLDB_PROPERTY_NAME);&#13;
+					Boolean bVLDB_PROPERTY_USE_DEFAULT_VALUE = (Boolean)rsVLDB_PROPERTY_GROUP.getResultCell(2).getValue();&#13;
+					String sVLDB_PROPERTY_VALUE = rsVLDB_PROPERTY_GROUP.getFieldValueString(DisplayPropertyEnum.VLDB_PROPERTY_VALUE);&#13;
+					&#13;
+				//Check if the default option is ticked off. If yes, the document those vldb only.&#13;
+					&#13;
+					if(!bVLDB_PROPERTY_USE_DEFAULT_VALUE.booleanValue()){&#13;
+&#13;
+						printOut("Cube : "+sCubeName);&#13;
+						printOut("Path :"+ sPath);&#13;
+						printOut("==========================================");&#13;
+						printOut("VLDB Property group name :  "+sVLDB_PROPERTY_GROUP_NAME );&#13;
+						printOut("VLDB Property Name :  "+sVLDB_PROPERTY_NAME );&#13;
+						printOut("VLDB Property Value :  "+sVLDB_PROPERTY_VALUE );&#13;
+						&#13;
+					//Create a row in the HSSF Sheet and and input the cells in the row and set it values.&#13;
+						&#13;
+						org.apache.poi.hssf.usermodel.HSSFRow row = ws.createRow(outRowNum);&#13;
+&#13;
+						org.apache.poi.hssf.usermodel.HSSFCell cell0 = row.createCell(0);&#13;
+						org.apache.poi.hssf.usermodel.HSSFCell cell1 = row.createCell(1);&#13;
+						org.apache.poi.hssf.usermodel.HSSFCell cell2 = row.createCell(2);&#13;
+						org.apache.poi.hssf.usermodel.HSSFCell cell3 = row.createCell(3);&#13;
+						org.apache.poi.hssf.usermodel.HSSFCell cell4 = row.createCell(4);&#13;
+						org.apache.poi.hssf.usermodel.HSSFCell cell5 = row.createCell(5);	&#13;
+						&#13;
+						cell0.setCellValue(sCubeName);&#13;
+						cell1.setCellValue(sPath);&#13;
+						cell2.setCellValue(sVLDB_PROPERTY_GROUP_NAME);&#13;
+						cell3.setCellValue(sVLDB_PROPERTY_NAME);&#13;
+						cell4.setCellValue(sVLDB_PROPERTY_VALUE);&#13;
+						cell5.setCellValue("FALSE");&#13;
+						&#13;
+					//Increment the row counter				&#13;
+						&#13;
+						outRowNum++;&#13;
+&#13;
+					}&#13;
+					&#13;
+					rsVLDB_PROPERTY_GROUP.moveNext();	&#13;
+				}&#13;
+				rsVLDBPropertySet.moveNext();&#13;
+&#13;
+			}&#13;
+		}&#13;
+&#13;
+	}&#13;
+&#13;
+	//Close the input stream having the sheet to which it output needs to be written&#13;
+	inputStream.close();&#13;
+	&#13;
+	//Open a file output stream to write to the excel file.&#13;
+	try (FileOutputStream outputStream = new FileOutputStream(sExcelPath)) {&#13;
+		wwb.write(outputStream);&#13;
+		outputStream.flush();&#13;
+		outputStream.close();	&#13;
+		&#13;
+		&#13;
+	}  &#13;
+	&#13;
+&#13;
+&#13;
+}&#13;
+&#13;
+catch (java.lang.Exception e){&#13;
+	printOut("Exception caught:"+e.getMessage());&#13;
+	&#13;
+	StackTraceElement[] trace =e.getStackTrace();&#13;
+&#13;
+	for (int i=0; i &lt; trace.length; i++)&#13;
+		printOut("\tat " + trace[i]);&#13;
+	&#13;
+	printOut(""+e.getCause());&#13;
+	resultMesssage = e.getMessage();&#13;
+}&#13;
+&#13;
+&#13;
+finally{&#13;
+&#13;
+	if(resultMesssage == null &amp;&amp; emptyCubeSet == 0&amp;&amp; failedCreation==null)&#13;
+	{&#13;
+		printOut("All Intelligent Cubes Listed Successfully");		&#13;
+	}&#13;
+	else&#13;
+	{&#13;
+		printOut("Intelligent Cubes Listing  Unsuccessful due to" +resultMesssage);&#13;
+	}&#13;
+&#13;
+}&#13;
+&#13;
+&#13;
+</CODE>
+<SAMPLE/>
+<VERSION>1.0</VERSION>
+<TYPE>CUSTOM</TYPE>
+<INPUT_PARAMS>
+<INPUT INPUT_TYPE="STRING">sDictionaryName</INPUT>
+<INPUT INPUT_TYPE="STRING">sExcelPath</INPUT>
+<INPUT INPUT_TYPE="STRING">sProjectName</INPUT>
+</INPUT_PARAMS>
+<CLASSPATH>
+<CLASSPATH_ITEM>C:\Software Installables\Java JAR files\jxl\jxl.jar</CLASSPATH_ITEM>
+<CLASSPATH_ITEM>C:\Software Installables\Java JAR files\MockRunner\mockrunner.jar</CLASSPATH_ITEM>
+<CLASSPATH_ITEM>C:\Software Installables\Java JAR files\poi-3.9.jar\poi-3.9.jar</CLASSPATH_ITEM>
+</CLASSPATH>
+<TEST_INPUT>
+<TEST_INPUT_PARAM>ICU</TEST_INPUT_PARAM>
+<TEST_INPUT_PARAM>C:\Users\KPI7506\Desktop\Sepsis.xls</TEST_INPUT_PARAM>
+<TEST_INPUT_PARAM>ICU - Web</TEST_INPUT_PARAM>
+</TEST_INPUT>
+<TEST_CONNECTION_INFO>
+<TEST_PSN_NAME>Dev WFH</TEST_PSN_NAME>
+<TEST_USERNAME>pho7659</TEST_USERNAME>
+<TEST_PASSWORD>0000000054914e8b50b47f20fc40aed88b96269d56ffd566921a22a3900bb8f5395d9fa60e228763</TEST_PASSWORD>
+</TEST_CONNECTION_INFO>
+</PROCEDURE_DEFINITION>
